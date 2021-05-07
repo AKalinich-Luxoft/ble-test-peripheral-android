@@ -28,9 +28,17 @@ import java.util.Arrays;
 import java.util.UUID;
 
 public class SdlTesterServiceFragment extends ServiceFragment {
+    private static final String TAG = SdlTesterServiceFragment.class.getCanonicalName();
+
     private static final UUID SDL_TESTER_SERVICE_UUID = UUID
             .fromString("00001101-0000-1000-8000-00805f9b34fb");
-    private static final String SDL_TESTER_DESCRIPTION = "Current binary outgoing message.";
+    private static final UUID MOBILE_REQUEST_CHARACTERISTIC = UUID
+            .fromString("00001102-0000-1000-8000-00805f9b34fb");
+    private static final UUID MOBILE_RESPONSE_CHARACTERISTIC = UUID
+            .fromString("00001103-0000-1000-8000-00805f9b34fb");
+    private static final String MOBILE_REQUEST_DESCRIPTOR = "Current binary message to SDL.";
+    private static final String MOBILE_RESPONSE_DESCRIPTOR = "Current binary message from SDL.";
+    private static final String INITIAL_MESSAGE = "Hello SDL";
 
     private ServiceFragmentDelegate mDelegate;
 
@@ -40,29 +48,42 @@ public class SdlTesterServiceFragment extends ServiceFragment {
     private final OnClickListener mNotifyButtonListener = new OnClickListener() {
         @Override
         public void onClick(View v) {
-            mDelegate.sendNotificationToDevices(mSdlServiceCharacteristic);
+            mDelegate.sendNotificationToDevices(mMobileRequestCharacteristic);
         }
     };
 
     // GATT
     private BluetoothGattService mSdlService;
-    private BluetoothGattCharacteristic mSdlServiceCharacteristic;
+    private BluetoothGattCharacteristic mMobileRequestCharacteristic;
+    private BluetoothGattCharacteristic mMobileResponseCharacteristic;
 
     public SdlTesterServiceFragment() {
-        mSdlServiceCharacteristic =
-                new BluetoothGattCharacteristic(SDL_TESTER_SERVICE_UUID,
-                        BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-                        BluetoothGattCharacteristic.PERMISSION_READ);
+        mMobileRequestCharacteristic =
+                new BluetoothGattCharacteristic(MOBILE_REQUEST_CHARACTERISTIC,
+                        BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+                        /* No permissions */ 0);
 
-        mSdlServiceCharacteristic.addDescriptor(
+        mMobileRequestCharacteristic.addDescriptor(
                 Peripheral.getClientCharacteristicConfigurationDescriptor());
 
-        mSdlServiceCharacteristic.addDescriptor(
-                Peripheral.getCharacteristicUserDescriptionDescriptor(SDL_TESTER_DESCRIPTION));
+        mMobileRequestCharacteristic.addDescriptor(
+                Peripheral.getCharacteristicUserDescriptionDescriptor(MOBILE_REQUEST_DESCRIPTOR));
+
+        mMobileResponseCharacteristic =
+                new BluetoothGattCharacteristic(MOBILE_RESPONSE_CHARACTERISTIC,
+                        BluetoothGattCharacteristic.PROPERTY_WRITE,
+                        BluetoothGattCharacteristic.PERMISSION_WRITE);
+
+        mMobileResponseCharacteristic.addDescriptor(
+                Peripheral.getClientCharacteristicConfigurationDescriptor());
+
+        mMobileResponseCharacteristic.addDescriptor(
+                Peripheral.getCharacteristicUserDescriptionDescriptor(MOBILE_RESPONSE_DESCRIPTOR));
 
         mSdlService = new BluetoothGattService(SDL_TESTER_SERVICE_UUID,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY);
-        mSdlService.addCharacteristic(mSdlServiceCharacteristic);
+        mSdlService.addCharacteristic(mMobileRequestCharacteristic);
+        mSdlService.addCharacteristic(mMobileResponseCharacteristic);
     }
 
     // Lifecycle callbacks
@@ -74,8 +95,13 @@ public class SdlTesterServiceFragment extends ServiceFragment {
         mSendToSdlButton = (Button) view.findViewById(R.id.send_to_sdl_button);
         mSendToSdlButton.setOnClickListener(mNotifyButtonListener);
         mMessageToDisplay = (TextView) view.findViewById(R.id.display_message_label);
+        setMobileRequestMessage(INITIAL_MESSAGE);
 
         return view;
+    }
+
+    private void setMobileRequestMessage(String message) {
+        mMobileRequestCharacteristic.setValue(message);
     }
 
     @Override
@@ -102,6 +128,23 @@ public class SdlTesterServiceFragment extends ServiceFragment {
     @Override
     public ParcelUuid getServiceUUID() {
         return new ParcelUuid(SDL_TESTER_SERVICE_UUID);
+    }
+
+    @Override
+    public int writeCharacteristic(BluetoothGattCharacteristic characteristic, int offset, byte[] value) {
+        if (offset != 0) {
+            return BluetoothGatt.GATT_INVALID_OFFSET;
+        }
+        final String message = new String(value);
+        mMobileResponseCharacteristic.setValue(value);
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mMessageToDisplay.setText(message);
+            }
+        });
+
+        return BluetoothGatt.GATT_SUCCESS;
     }
 
     @Override
