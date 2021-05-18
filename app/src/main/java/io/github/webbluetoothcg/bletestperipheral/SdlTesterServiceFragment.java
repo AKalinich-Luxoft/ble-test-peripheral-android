@@ -43,11 +43,13 @@ public class SdlTesterServiceFragment extends ServiceFragment {
     private ServiceFragmentDelegate mDelegate;
 
     private TextView mMessageToDisplay;
+    private EditText mEditTextMessage;
     private Button mSendToSdlButton;
 
     private final OnClickListener mNotifyButtonListener = new OnClickListener() {
         @Override
         public void onClick(View v) {
+            setMobileRequestMessage(mEditTextMessage.getText().toString());
             mDelegate.sendNotificationToDevices(mMobileRequestCharacteristic);
         }
     };
@@ -95,6 +97,8 @@ public class SdlTesterServiceFragment extends ServiceFragment {
         mSendToSdlButton = (Button) view.findViewById(R.id.send_to_sdl_button);
         mSendToSdlButton.setOnClickListener(mNotifyButtonListener);
         mMessageToDisplay = (TextView) view.findViewById(R.id.display_message_label);
+        mEditTextMessage = (EditText) view.findViewById(R.id.message_to_send);
+        mEditTextMessage.setText(INITIAL_MESSAGE);
         setMobileRequestMessage(INITIAL_MESSAGE);
 
         return view;
@@ -137,6 +141,7 @@ public class SdlTesterServiceFragment extends ServiceFragment {
         }
         final String message = new String(value);
         mMobileResponseCharacteristic.setValue(value);
+        Log.d(TAG, "Received: " + message + " of length " + value.length);
         getActivity().runOnUiThread(new Runnable() {
             @Override
             public void run() {
